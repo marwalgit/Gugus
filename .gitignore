@@ -1,3 +1,7 @@
 
 # Local backups
 backup_before_github_*/
+
+# Python cache
+__pycache__/
+*.pyc
