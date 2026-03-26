@@ -1,3 +1,6 @@
+
+
+
 import os
 import time
 import random
@@ -15,8 +18,8 @@ THINK_MIN = 1400
 THINK_MAX = 1600
 
 # IDLE plage complète (pas micro-centre)
-IDLE_MIN = 1450
-IDLE_MAX = 1550
+IDLE_MIN = 1350
+IDLE_MAX = 1650
 
 # Intervalle entre mouvements idle
 IDLE_INTERVAL_MIN = 3.0
