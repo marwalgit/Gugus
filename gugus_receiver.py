@@ -12,7 +12,7 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 last_wake = 0.0
 COOLDOWN = 60.0
 def alexa_reply(text: str, end_session: bool = False):
-    return {
+    response = {
         "version": "1.0",
         "response": {
             "outputSpeech": {"type": "PlainText", "text": text},
@@ -20,6 +20,15 @@ def alexa_reply(text: str, end_session: bool = False):
         },
     }
 
+    if not end_session:
+        response["response"]["reprompt"] = {
+            "outputSpeech": {
+                "type": "PlainText",
+                "text": "Je t'écoute."
+            }
+        }
+
+    return response
 
 def process_text_and_speak(text: str):
     print("### process_text_and_speak ###", flush=True)
@@ -54,7 +63,7 @@ def process_text_and_speak(text: str):
         ) as audio_response:
             audio_response.stream_to_file(audio_file)
         subprocess.run(
-            ["sox", audio_file, robot_file, "pitch", "250", "treble", "+4"],
+        ["sox", audio_file, robot_file, "gain", "-n", "pitch", "180", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -149,7 +158,7 @@ def alexa_webhook():
         print(f"req_type = {req_type}", flush=True)
 
         if req_type == "LaunchRequest":
-            reply = alexa_reply("Prêt.")
+            reply = alexa_reply("Prêt.", end_session=False)
             print(f"reply_text = {reply['response']['outputSpeech']['text']}", flush=True)
             return jsonify(reply)
 
