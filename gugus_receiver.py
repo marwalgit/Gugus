@@ -9,6 +9,49 @@ from datetime import datetime
 
 app = Flask(__name__)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+FIRST_RUN_FILE = "/tmp/gugus_first_run.done"
+
+def first_run_greeting():
+    if not os.path.exists(FIRST_RUN_FILE):
+        print(">>> FIRST RUN GREETING <<<", flush=True)
+        
+        text = "Hey!  Coucou Rose ! Je suis Gugusse, oui, je sais... c'est bizarre  un  robot poilu ! Je ne suis pas encore tout à fait au point mais je te promets que je vais faire de mon mieux! En tout cas je suis trop content d'être enfin en vie ! "
+        
+        try:
+            # Génération TTS
+            response = client.audio.speech.create(
+                model="gpt-4o-mini-tts",
+                voice="coral",
+                input=text,
+                response_format="wav",
+            )
+
+            audio_file = "/tmp/gugus_first.wav"
+            with open(audio_file, "wb") as f:
+                f.write(response.content)
+
+            # Effet robot (même pipeline que d'habitude)
+            robot_file = "/tmp/gugus_first_robot.wav"
+
+            subprocess.run(
+                ["sox", audio_file, robot_file, "pad", "2", "gain", "-n", "pitch", "180", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            subprocess.Popen(
+                ["paplay", robot_file],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        except Exception as e:
+            print(f"Erreur first run: {e}", flush=True)
+
+        # Marquer comme déjà exécuté
+        open(FIRST_RUN_FILE, "w").close()
+first_run_greeting()
 last_wake = 0.0
 COOLDOWN = 60.0
 def alexa_reply(text: str, end_session: bool = False):
@@ -63,7 +106,7 @@ def process_text_and_speak(text: str):
         ) as audio_response:
             audio_response.stream_to_file(audio_file)
         subprocess.run(
-        ["sox", audio_file, robot_file, "gain", "-n", "pitch", "180", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
+        ["sox", audio_file, robot_file,"pad", "2", "gain", "-n", "pitch", "220", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -158,7 +201,7 @@ def alexa_webhook():
         print(f"req_type = {req_type}", flush=True)
 
         if req_type == "LaunchRequest":
-            reply = alexa_reply("Prêt.", end_session=False)
+            reply = alexa_reply("gugusse est prêt.", end_session=False)
             print(f"reply_text = {reply['response']['outputSpeech']['text']}", flush=True)
             return jsonify(reply)
 

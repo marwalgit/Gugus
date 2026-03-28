@@ -19,23 +19,40 @@ class HeadController:
 
     def move_to(self, target_us: int, step_us: int = 10, step_delay: float = 0.02):
         """
-        Déplace le servo en douceur vers target_us.
-        - step_us: taille des petits pas (plus petit = plus doux)
-        - step_delay: pause entre pas (plus petit = plus rapide)
+        Déplace le servo avec un profil simple plus naturel :
+        départ doux, milieu plus rapide, arrivée douce.
         """
         target_us = int(target_us)
+        start_us = self.current_us
+        distance = target_us - start_us
+
         print(f"[head_controller] move_to: {self.current_us} -> {target_us}")
 
-        while self.current_us != target_us:
-            if self.current_us < target_us:
-                self.current_us = min(self.current_us + step_us, target_us)
-            else:
-                self.current_us = max(self.current_us - step_us, target_us)
+        if distance == 0:
+            print(f"[head_controller] reached: {self.current_us}")
+            return
 
-            self.pi.set_servo_pulsewidth(self.gpio_pin, self.current_us)
+        total_steps = max(1, abs(distance) // max(1, step_us))
+
+        for i in range(1, total_steps + 1):
+            progress = i / total_steps
+
+            # Courbe simple "ease in / ease out"
+            eased = 6 * (progress ** 5) - 15 * (progress ** 4) + 10 * (progress ** 3)
+
+            next_us = int(start_us + distance * eased)
+
+            if next_us != self.current_us:
+                self.current_us = next_us
+                self.pi.set_servo_pulsewidth(self.gpio_pin, self.current_us)
+
             time.sleep(step_delay)
 
+        self.current_us = target_us
+        self.pi.set_servo_pulsewidth(self.gpio_pin, self.current_us)
+
         print(f"[head_controller] reached: {self.current_us}")
+
     def stop(self):
         """Coupe le signal (évite de maintenir le servo sous tension en permanence)."""
         self.pi.set_servo_pulsewidth(self.gpio_pin, 0)
@@ -43,14 +60,13 @@ class HeadController:
 
 
 if __name__ == "__main__":
-    # Petit test manuel
     head = HeadController(gpio_pin=18, start_us=1500)
     try:
-        head.move_to(1200)  # gauche
+        head.move_to(1200)
         time.sleep(0.5)
-        head.move_to(1800)  # droite
+        head.move_to(1800)
         time.sleep(0.5)
-        head.move_to(1500)  # centre
+        head.move_to(1500)
         time.sleep(0.5)
     finally:
         head.stop()

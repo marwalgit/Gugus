@@ -97,7 +97,7 @@ if __name__ == "__main__":
                     )
 
                 print(f"[head] idle wander -> {idle_pos} -> {target}")
-                head.move_to(target, step_us=3, step_delay=0.04)
+                head.move_to(target, step_us=2, step_delay=0.014)
                 idle_pos = target
 
                 next_idle_move = now + random.uniform(
