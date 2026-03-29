@@ -51,9 +51,55 @@ def first_run_greeting():
 
         # Marquer comme déjà exécuté
         open(FIRST_RUN_FILE, "w").close()
-first_run_greeting()
+# first_run_greeting()
 last_wake = 0.0
 COOLDOWN = 60.0
+FIRST_WAKE_FILE = "/tmp/gugus_first_wake.done"
+def first_wake_greeting():
+    if os.path.exists(FIRST_WAKE_FILE):
+        return
+
+    print(">>> FIRST WAKE GREETING <<<", flush=True)
+
+    text = "Coucou Rose ! Je suis Gugus ! Oui je sais c'est bizarre un robot poilu ! Bon, je ne suis pas encore tout à fait au point mais je vais faire de mon mieux ! Promis ! En tout cas je suis trop content d'être d'être enfin vivant !  "
+
+    try:
+        audio_file = "/tmp/gugus_first_wake.wav"
+        robot_file = "/tmp/gugus_first_wake_robot.wav"
+
+        with client.audio.speech.with_streaming_response.create(
+            model="gpt-4o-mini-tts",
+            voice="coral",
+            input=text,
+            response_format="wav",
+        ) as audio_response:
+            audio_response.stream_to_file(audio_file)
+
+        subprocess.run(
+            [
+                "sox",
+                audio_file,
+                robot_file,
+                "pad", "2",
+                "gain", "-n",
+                "pitch", "180",
+                "treble", "+4",
+                "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        subprocess.Popen(
+            ["paplay", robot_file],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        open(FIRST_WAKE_FILE, "w").close()
+
+    except Exception as e:
+        print(f"Erreur first wake greeting: {e}", flush=True)
 def alexa_reply(text: str, end_session: bool = False):
     response = {
         "version": "1.0",
@@ -128,15 +174,16 @@ def process_text_and_speak(text: str):
     finally:
         print(">>> PASSAGE EN IDLE <<<", flush=True)
         set_state_idle()
-
 @app.post("/event")
 def event():
     global last_wake
     data = request.get_json(force=True) or {}
+
     if data.get("event") == "wake":
         now = time.time()
         if now - last_wake < COOLDOWN:
             return jsonify({"ok": True, "ignored": True})
+
         last_wake = now
         set_state_listen()
 
@@ -147,8 +194,13 @@ def event():
         )
 
         time.sleep(1.0)
+        first_wake_greeting()
+
+        time.sleep(1.0)
         set_state_idle()
+
         return jsonify({"ok": True})
+
     return jsonify({"ok": False}), 400
 @app.post("/say")
 def say():
