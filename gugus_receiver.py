@@ -6,6 +6,31 @@ import threading
 from openai import OpenAI
 from gugus_flags import set_state_idle, set_state_listen
 from datetime import datetime
+import json
+
+IDENTITE_PATH = "/mnt/nas/memoire_gugus/souvenirs/identite.json"
+
+def load_identity():
+    try:
+        with open(IDENTITE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Impossible de charger l'identité: {e}", flush=True)
+        return {}
+
+def build_identity_prompt():
+    identity = load_identity()
+    if not identity:
+        return ""
+
+    lines = []
+    for k, v in identity.items():
+        if isinstance(v, list):
+            lines.append(f"{k}: {', '.join(v)}")
+        else:
+            lines.append(f"{k}: {v}")
+
+    return "\n".join(lines)
 
 app = Flask(__name__)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -118,7 +143,6 @@ def alexa_reply(text: str, end_session: bool = False):
         }
 
     return response
-
 def process_text_and_speak(text: str):
     print("### process_text_and_speak ###", flush=True)
     print(f"Texte reçu: {text}", flush=True)
@@ -126,12 +150,20 @@ def process_text_and_speak(text: str):
     set_state_listen()
 
     try:
+        identity_prompt = build_identity_prompt()
+
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": f"Tu es Gugus, un petit robot sympathique. Réponds avec des phrases courtes. La date d'aujourd'hui est {today_str}. Si on te demande la date ou le jour, utilise cette information et n'invente pas." 
+                    "content": (
+                        f"{identity_prompt}\n\n"
+                        f"Tu es Gugus, un petit robot sympathique. "
+                        f"Réponds avec des phrases courtes. "
+                        f"La date d'aujourd'hui est {today_str}. "
+                        f"Si on te demande la date ou le jour, utilise cette information et n'invente pas."
+                    )
                 },
                 {
                     "role": "user",
@@ -142,8 +174,10 @@ def process_text_and_speak(text: str):
 
         answer = response.choices[0].message.content.strip()
         print(f"Réponse générée: {answer}", flush=True)
+
         audio_file = "/tmp/gugus_reply.wav"
         robot_file = "/tmp/gugus_reply_robot.wav"
+
         with client.audio.speech.with_streaming_response.create(
             model="gpt-4o-mini-tts",
             voice="coral",
@@ -151,11 +185,13 @@ def process_text_and_speak(text: str):
             response_format="wav",
         ) as audio_response:
             audio_response.stream_to_file(audio_file)
+
         subprocess.run(
-        ["sox", audio_file, robot_file,"pad", "2", "gain", "-n", "pitch", "220", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
+            ["sox", audio_file, robot_file, "pad", "2", "gain", "-n", "pitch", "220", "treble", "+4", "chorus", "0.5", "0.7", "20", "0.3", "0.2", "2", "-t"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+
         loud_file = "/tmp/gugus_reply_loud.wav"
 
         subprocess.run(
@@ -163,6 +199,7 @@ def process_text_and_speak(text: str):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+
         subprocess.Popen(
             ["paplay", robot_file],
             stdout=subprocess.DEVNULL,
